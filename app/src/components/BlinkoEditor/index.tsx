@@ -93,16 +93,18 @@ export const BlinkoEditor = observer(({ mode, onSended, onHeightChange, isInDial
 
   useEffect(() => {
     blinko.isCreateMode = mode == 'create'
+    if (isInDialog) {
+      document.documentElement.style.setProperty('--min-editor-height', `65vh`)
+    } else {
+      document.documentElement.style.setProperty('--min-editor-height', `unset`)
+    }
+
     if (mode == 'create') {
-      if (isInDialog) {
-        document.documentElement.style.setProperty('--min-editor-height', `50vh`)
-      }
       const local = blinko.createContentStorage.value
       if (local && local.content != '') {
         blinko.noteContent = local.content
       }
     } else {
-      document.documentElement.style.setProperty('--min-editor-height', `unset`)
       try {
         if (!blinko.curSelectedNote) return;
         const local = blinko.editContentStorage.list?.find(i => Number(i.id) == Number(blinko.curSelectedNote!.id))

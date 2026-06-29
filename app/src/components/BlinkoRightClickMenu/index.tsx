@@ -179,12 +179,13 @@ export const ShowEditTimeModel = (showExpired: boolean = false) => {
   })
 }
 
-export const ShowEditBlinkoModel = (size: string = '2xl', mode: 'create' | 'edit' = 'edit', initialData?: { file?: File, text?: string }) => {
+export const ShowEditBlinkoModel = (size: string = '4xl', mode: 'create' | 'edit' = 'edit', initialData?: { file?: File, text?: string }) => {
   const blinko = RootStore.Get(BlinkoStore)
   RootStore.Get(DialogStore).setData({
     size: size as any,
     isOpen: true,
     onlyContent: true,
+    placement: 'center',
     isDismissable: false,
     showOnlyContentCloseButton: true,
     content: <BlinkoEditor isInDialog mode={mode} initialData={initialData} key={`editor-key-${mode}`} onSended={() => {

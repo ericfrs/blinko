@@ -20,12 +20,12 @@ export const BlinkoAddButton = observer(() => {
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
 
   const handleWriteAction = () => {
-    ShowEditBlinkoModel('2xl', 'create')
+    ShowEditBlinkoModel('4xl', 'create')
     FocusEditorFixMobile()
   };
 
   const handleAudioRecording = () => {
-    ShowEditBlinkoModel('2xl', 'create');
+    ShowEditBlinkoModel('4xl', 'create');
     setTimeout(() => {
       eventBus.emit('editor:startAudioRecording');
     }, 300);
