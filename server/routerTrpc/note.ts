@@ -167,8 +167,7 @@ export const noteRouter = router({
       }
 
       if (tagId) {
-        const tags = await prisma.tagsToNote.findMany({ where: { tagId } });
-        where.id = { in: tags?.map((i) => i.noteId) };
+        where.tags = { some: { tagId } };
       }
       if (withFile) {
         where.attachments = { some: {} };
