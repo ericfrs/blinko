@@ -22,6 +22,68 @@ const extractHashtags = (input: string): string[] => {
   return matches ? matches : [];
 };
 
+type NoteListInput = {
+  tagId?: number | null;
+  type: number;
+  isArchived?: boolean | null;
+  isShare?: boolean | null;
+  isRecycle?: boolean;
+  searchText?: string;
+  withoutTag?: boolean;
+  withFile?: boolean;
+  withLink?: boolean;
+  startDate?: Date | string | null;
+  endDate?: Date | string | null;
+  hasTodo?: boolean;
+};
+
+const buildNoteWhereClause = (input: NoteListInput, accountId: number): Prisma.notesWhereInput => {
+  const { tagId, type, isArchived, isRecycle, searchText, withFile, withoutTag, withLink, startDate, endDate, isShare, hasTodo } = input;
+
+  let where: Prisma.notesWhereInput = {
+    OR: [
+      { accountId },
+      { internalShares: { some: { accountId } } }
+    ],
+    isRecycle: isRecycle
+  };
+
+  if (searchText != '') {
+    where = {
+      OR: [
+        { accountId, content: { contains: searchText, mode: 'insensitive' } },
+        { accountId, attachments: { some: { path: { contains: searchText, mode: 'insensitive' } } } },
+        { internalShares: { some: { accountId } }, content: { contains: searchText, mode: 'insensitive' } },
+        { internalShares: { some: { accountId } }, attachments: { some: { path: { contains: searchText, mode: 'insensitive' } } } }
+      ],
+    };
+    where.isRecycle = isRecycle;
+    if (!isRecycle && isArchived != null) where.isArchived = isArchived;
+    if (type != -1) where.type = type;
+  } else {
+    where.isRecycle = isRecycle;
+    if (!isRecycle && isArchived != null) where.isArchived = isArchived;
+    if (type != -1) where.type = type;
+    if (isShare != null) where.isShare = isShare;
+  }
+
+  if (tagId) where.tags = { some: { tagId } };
+  if (withFile) where.attachments = { some: {} };
+  if (withoutTag) where.tags = { none: {} };
+  if (startDate && endDate) where.createdAt = { gte: startDate, lte: endDate };
+  if (withLink) where.OR = [{ content: { contains: 'http://', mode: 'insensitive' } }, { content: { contains: 'https://', mode: 'insensitive' } }];
+  if (hasTodo) {
+    where.OR = [
+      { content: { contains: '- [ ]', mode: 'insensitive' } },
+      { content: { contains: '- [x]', mode: 'insensitive' } },
+      { content: { contains: '* [ ]', mode: 'insensitive' } },
+      { content: { contains: '* [x]', mode: 'insensitive' } },
+    ];
+  }
+
+  return where;
+};
+
 export const noteRouter = router({
   list: authProcedure
     .meta({ openapi: { method: 'POST', path: '/v1/note/list', summary: 'Query notes list', protect: true, tags: ['Note'] } })
@@ -104,7 +166,7 @@ export const noteRouter = router({
       ),
     )
     .mutation(async function ({ input, ctx }) {
-      const { tagId, type, isArchived, isRecycle, searchText, page, size, orderBy, withFile, withoutTag, withLink, isUseAiQuery, startDate, endDate, isShare, hasTodo } = input;
+      const { isUseAiQuery, searchText, page, size, orderBy } = input;
       if (isUseAiQuery && searchText?.trim() != '') {
         const cleanedQuery = searchText?.replace(/@/g, '').trim();
         if (cleanedQuery && cleanedQuery.length > 0) {
@@ -117,80 +179,9 @@ export const noteRouter = router({
         return [];
       }
 
-      let where: Prisma.notesWhereInput = {
-        OR: [
-          { accountId: Number(ctx.id) },
-          { internalShares: { some: { accountId: Number(ctx.id) } } }
-        ],
-        isRecycle: isRecycle
-      };
-
-      if (searchText != '') {
-        where = {
-          OR: [
-            {
-              accountId: Number(ctx.id),
-              content: { contains: searchText, mode: 'insensitive' }
-            },
-            {
-              accountId: Number(ctx.id),
-              attachments: { some: { path: { contains: searchText, mode: 'insensitive' } } }
-            },
-            {
-              internalShares: { some: { accountId: Number(ctx.id) } },
-              content: { contains: searchText, mode: 'insensitive' }
-            },
-            {
-              internalShares: { some: { accountId: Number(ctx.id) } },
-              attachments: { some: { path: { contains: searchText, mode: 'insensitive' } } }
-            }
-          ],
-        };
-        where.isRecycle = isRecycle;
-        if (!isRecycle && isArchived != null) {
-          where.isArchived = isArchived;
-        }
-        if (type != -1) {
-          where.type = type;
-        }
-      } else {
-        where.isRecycle = isRecycle;
-        if (!isRecycle && isArchived != null) {
-          where.isArchived = isArchived;
-        }
-        if (type != -1) {
-          where.type = type;
-        }
-        if (isShare != null) {
-          where.isShare = isShare;
-        }
-      }
-
-      if (tagId) {
-        where.tags = { some: { tagId } };
-      }
-      if (withFile) {
-        where.attachments = { some: {} };
-      }
-      if (withoutTag) {
-        where.tags = { none: {} };
-      }
-      if (startDate && endDate) {
-        where.createdAt = { gte: startDate, lte: endDate };
-      }
-      if (withLink) {
-        where.OR = [{ content: { contains: 'http://', mode: 'insensitive' } }, { content: { contains: 'https://', mode: 'insensitive' } }];
-      }
-      if (hasTodo) {
-        where.OR = [
-          { content: { contains: '- [ ]', mode: 'insensitive' } },
-          { content: { contains: '- [x]', mode: 'insensitive' } },
-          { content: { contains: '* [ ]', mode: 'insensitive' } },
-          { content: { contains: '* [x]', mode: 'insensitive' } },
-        ];
-      }
+      const where = buildNoteWhereClause(input, Number(ctx.id));
       const config = await getGlobalConfig({ ctx });
-      let timeOrderBy = config?.isOrderByCreateTime ? { createdAt: orderBy } : { updatedAt: orderBy };
+      const timeOrderBy = config?.isOrderByCreateTime ? { createdAt: orderBy } : { updatedAt: orderBy };
 
       const notes = await prisma.notes.findMany({
         where,
