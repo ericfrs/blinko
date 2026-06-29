@@ -223,13 +223,18 @@ export const configRouter = router({
         title: z.string(),
         provider: z.string(),
         baseURL: z.string().nullable(),
-        apiKey: z.string().nullable()
       })
     }).nullable())
     .query(async function ({ input, ctx }) {
       const { type } = input;
 
       const model = await getAiModelConfig(type, ctx);
-      return model;
+      if (!model) return null;
+
+      const { apiKey: _removed, ...safeProvider } = model.provider;
+      return {
+        ...model,
+        provider: safeProvider,
+      };
     })
 })
