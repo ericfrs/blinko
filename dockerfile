@@ -89,30 +89,24 @@ COPY --from=builder /app/node_modules/.prisma/client ./node_modules/.prisma/clie
 COPY --from=builder /app/start.sh ./
 COPY --from=init-downloader /app/dumb-init /usr/local/bin/dumb-init
 
-RUN chmod +x ./start.sh && \
-    ls -la start.sh
+RUN chmod +x ./start.sh
 
-RUN if [ "$(uname -m)" = "aarch64" ] || [ "$(uname -m)" = "arm64" ]; then \
-        echo "Detected ARM architecture, installing sharp platform-specific dependencies..." && \
+RUN apk add --no-cache openssl vips-dev python3 py3-setuptools make g++ gcc libc-dev linux-headers && \
+    if [ "$(uname -m)" = "aarch64" ] || [ "$(uname -m)" = "arm64" ]; then \
         mkdir -p /tmp/sharp-cache && \
         export SHARP_CACHE_DIRECTORY=/tmp/sharp-cache && \
         npm install --platform=linux --arch=arm64 sharp@0.34.1 --no-save --unsafe-perm || \
         npm install --force @img/sharp-linux-arm64 --no-save; \
-    fi
-
-# Install runtime dependencies; legacy peer deps avoids optional peer conflicts from LangChain.
-RUN echo "Installing additional dependencies..." && \
+    fi && \
     npm install @node-rs/crc32 lightningcss sharp@0.34.1 prisma@5.21.1 && \
     npm install -g prisma@5.21.1 && \
     npm install sqlite3@5.1.7 && \
     npm install --legacy-peer-deps llamaindex @langchain/community@0.3.40 && \
     npm install @libsql/client @libsql/core && \
     npx prisma generate && \
-    # find / -type d -name "onnxruntime-*" -exec rm -rf {} + 2>/dev/null || true && \
-    # npm cache clean --force && \
-    rm -rf /tmp/* && \
+    npm cache clean --force && \
     apk del python3 py3-setuptools make g++ gcc libc-dev linux-headers && \
-    rm -rf /var/cache/apk/* /root/.npm /root/.cache
+    rm -rf /tmp/* /var/cache/apk/* /root/.npm /root/.cache
 
 # Expose Port (Adjust According to Actual Application)
 EXPOSE 1111
