@@ -766,7 +766,7 @@
   "to-record-audio-notes-we-need-permission-to-access-your-microphone": "Para grabar notas de audio necesitamos permiso para acceder a tu micrófono.",
   "to-search-tags": "Para buscar etiquetas",
   "today": "Hoy",
-  "todo": "Tareas pendientes",
+  "todo": "Tareas",
   "token-url": "URL del token",
   "tool-call": "Llamada a herramienta",
   "tool-call-details": "Detalles de la llamada a herramienta",
