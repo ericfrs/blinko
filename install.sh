@@ -11,6 +11,17 @@ DB_PASSWORD=$(openssl rand -base64 24 | tr -d '=+/' | head -c 32)
 
 echo -e "${CYAN}🔐 Generated secure secrets for this installation.${NC}"
 
+if [ "$(docker ps -aq -f name=blinko-website)" ]; then
+    echo -e "${RED}Container 'blinko-website' already exists. Remove it first with:${NC}"
+    echo -e "  docker stop blinko-website && docker rm blinko-website"
+    exit 1
+fi
+
+if ss -tlnp | grep -q ':1111 '; then
+    echo -e "${RED}Port 1111 is already in use. Free it before running this script.${NC}"
+    exit 1
+fi
+
 if [ ! "$(docker network ls -q -f name=blinko-network)" ]; then
     echo -e "${YELLOW}Network 'blinko-network' does not exist. Creating network...${NC}"
     docker network create blinko-network
