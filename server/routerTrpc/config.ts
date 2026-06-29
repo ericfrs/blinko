@@ -5,47 +5,59 @@ import { GlobalConfig, ZConfigKey, ZConfigSchema, ZUserPerferConfigKey } from '.
 import { configSchema } from '@shared/lib/prismaZodType';
 import { Context } from '../context';
 import { reinitializeOAuthStrategies } from '../routerExpress/auth/config';
+import { cache } from '@shared/lib/cache';
+
+const CONFIG_CACHE_TTL = 30 * 1000;
+
+const configCacheKey = (userId: number, useAdmin: boolean) =>
+  `global-config:${userId}:${useAdmin}`;
 
 export const getGlobalConfig = async ({ ctx, useAdmin = false }: { ctx?: Context, useAdmin?: boolean }) => {
   const userId = Number(ctx?.id ?? 0);
-  const configs = await prisma.config.findMany();
-  const isSuperAdmin = useAdmin ? true : ctx?.role === 'superadmin';
+  return cache.wrap(
+    configCacheKey(userId, useAdmin),
+    async () => {
+      const configs = await prisma.config.findMany();
+      const isSuperAdmin = useAdmin ? true : ctx?.role === 'superadmin';
 
-  const globalConfig = configs.reduce((acc, item) => {
-    const config = item.config as { type: string, value: any };
-    //If not login return the frist config
-    if (
-      item.key == 'isCloseBackgroundAnimation'
-      || item.key == 'isAllowRegister'
-      || item.key == 'language'
-      || item.key == 'theme'
-      || item.key == 'themeColor'
-      || item.key == 'themeForegroundColor'
-      || item.key == 'fontStyle'
-      || item.key == 'maxHomePageWidth'
-      || item.key == 'customBackgroundUrl'
-      || item.key == 'hidePcEditor'
-      || item.key == 'signinFooterEnabled'
-      || item.key == 'signinFooterText'
-      || item.key == 'customTitle'
-    ) {
-      //if user not login, then use frist find config
-      if (!userId) {
-        acc[item.key] = config.value;
+      const globalConfig = configs.reduce((acc, item) => {
+        const config = item.config as { type: string, value: any };
+        //If not login return the frist config
+        if (
+          item.key == 'isCloseBackgroundAnimation'
+          || item.key == 'isAllowRegister'
+          || item.key == 'language'
+          || item.key == 'theme'
+          || item.key == 'themeColor'
+          || item.key == 'themeForegroundColor'
+          || item.key == 'fontStyle'
+          || item.key == 'maxHomePageWidth'
+          || item.key == 'customBackgroundUrl'
+          || item.key == 'hidePcEditor'
+          || item.key == 'signinFooterEnabled'
+          || item.key == 'signinFooterText'
+          || item.key == 'customTitle'
+        ) {
+          //if user not login, then use frist find config
+          if (!userId) {
+            acc[item.key] = config.value;
+            return acc;
+          }
+        }
+        if (!isSuperAdmin && !item.userId) {
+          return acc;
+        }
+        const isUserPreferConfig = ZUserPerferConfigKey.safeParse(item.key).success;
+        if ((isUserPreferConfig && item.userId === userId) || (!isUserPreferConfig)) {
+          acc[item.key] = config.value;
+        }
         return acc;
-      }
-    }
-    if (!isSuperAdmin && !item.userId) {
-      return acc;
-    }
-    const isUserPreferConfig = ZUserPerferConfigKey.safeParse(item.key).success;
-    if ((isUserPreferConfig && item.userId === userId) || (!isUserPreferConfig)) {
-      acc[item.key] = config.value;
-    }
-    return acc;
-  }, {} as Record<string, any>);
+      }, {} as Record<string, any>);
 
-  return globalConfig as GlobalConfig;
+      return globalConfig as GlobalConfig;
+    },
+    { ttl: CONFIG_CACHE_TTL }
+  );
 };
 
 export const getAiModelConfig = async (type: 'mainModel' | 'embeddingModel' | 'voiceModel' | 'rerankModel' | 'imageModel' | 'audioModel', ctx?: Context) => {
@@ -103,7 +115,6 @@ export const configRouter = router({
       const userId = Number(ctx.id)
       const { key, value } = input
       const isUserPreferConfig = ZUserPerferConfigKey.safeParse(key).success;
-      console.log('isUserPreferConfig', isUserPreferConfig)
       let updateResult;
       
       if (isUserPreferConfig) {
@@ -154,16 +165,15 @@ export const configRouter = router({
         }
       }
 
-      // If updating OAuth2 providers, reinitialize OAuth strategies
       if (key === 'oauth2Providers') {
         try {
-          const result = await reinitializeOAuthStrategies();
-          console.log('OAuth strategies reinitialized after config update:', result);
+          await reinitializeOAuthStrategies();
         } catch (error) {
-          console.error('Failed to reinitialize OAuth strategies after config update:', error);
-          // Don't throw error here to avoid breaking the config update
+          console.error('Failed to reinitialize OAuth strategies:', error);
         }
       }
+
+      cache.clear();
 
       return updateResult;
     }),
