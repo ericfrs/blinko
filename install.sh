@@ -1,12 +1,16 @@
 #!/bin/bash
 
-# Colors for better visibility
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+CYAN='\033[0;36m'
+NC='\033[0m'
 
-# Check if the network 'blinko-network' already exists
+NEXTAUTH_SECRET=$(openssl rand -base64 32)
+DB_PASSWORD=$(openssl rand -base64 24 | tr -d '=+/' | head -c 32)
+
+echo -e "${CYAN}🔐 Generated secure secrets for this installation.${NC}"
+
 if [ ! "$(docker network ls -q -f name=blinko-network)" ]; then
     echo -e "${YELLOW}Network 'blinko-network' does not exist. Creating network...${NC}"
     docker network create blinko-network
@@ -20,9 +24,9 @@ else
     echo -e "${YELLOW}Network 'blinko-network' already exists. Skipping network creation.${NC}"
 fi
 
-# Step 2: Check if the PostgreSQL container 'blinko-postgres' already exists
 if [ "$(docker ps -aq -f name=blinko-postgres)" ]; then
     echo -e "${YELLOW}Container 'blinko-postgres' already exists. Skipping container creation.${NC}"
+    echo -e "${YELLOW}⚠️  Using existing postgres container. Make sure DATABASE_URL matches its credentials.${NC}"
 else
     echo -e "${YELLOW}2. 🐳 Starting PostgreSQL container...${NC}"
     docker run -d \
@@ -30,8 +34,8 @@ else
       --network blinko-network \
       -e POSTGRES_DB=postgres \
       -e POSTGRES_USER=postgres \
-      -e POSTGRES_PASSWORD=mysecretpassword \
-      -e TZ=Asia/Shanghai \
+      -e POSTGRES_PASSWORD="$DB_PASSWORD" \
+      -e TZ=America/Buenos_Aires \
       --restart always \
       postgres:14
 
@@ -42,14 +46,12 @@ else
     echo -e "${GREEN}✅ PostgreSQL container is running.${NC}"
 fi
 
-# Step 3: Prompt user to optionally mount the .blinko directory
 echo -e "${YELLOW}Do you want to mount a local '.blinko' directory to '/app/.blinko' in the container? (y/n)${NC}"
 read -p "Enter your choice: " mount_choice
 
 if [[ "$mount_choice" == "y" || "$mount_choice" == "Y" ]]; then
     read -p "Please provide the path to your '.blinko' folder: " blnko_folder
 
-    # Check if the directory exists; if not, create it
     if [ ! -d "$blnko_folder" ]; then
         echo -e "${YELLOW}Directory does not exist. Creating directory...${NC}"
         mkdir -p "$blnko_folder"
@@ -60,7 +62,6 @@ if [[ "$mount_choice" == "y" || "$mount_choice" == "Y" ]]; then
         fi
     fi
 
-    # Check if the directory has write permissions
     if [ ! -w "$blnko_folder" ]; then
         echo -e "${RED}The directory '$blnko_folder' does not have write permissions.${NC}"
         exit 1
@@ -73,15 +74,14 @@ else
     echo -e "${YELLOW}Skipping mounting of .blinko directory.${NC}"
 fi
 
-# Step 4: Run BlinkOS container with or without volume path
 echo -e "${YELLOW}3. 🖥️ Starting BlinkOS container...${NC}"
 docker run -d \
   --name blinko-website \
   --network blinko-network \
   -p 1111:1111 \
   -e NODE_ENV=production \
-  -e NEXTAUTH_SECRET=my_ultra_secure_nextauth_secret \
-  -e DATABASE_URL=postgresql://postgres:mysecretpassword@blinko-postgres:5432/postgres \
+  -e NEXTAUTH_SECRET="$NEXTAUTH_SECRET" \
+  -e DATABASE_URL="postgresql://postgres:${DB_PASSWORD}@blinko-postgres:5432/postgres" \
   $volume_mount \
   --restart always \
   ghcr.io/ericfrs/blinko:latest
@@ -91,5 +91,13 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 
+echo ""
 echo -e "${GREEN}✅ All containers are up and running.${NC}"
-
+echo ""
+echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${CYAN}  ⚠️  SAVE THESE CREDENTIALS — they won't be shown again:${NC}"
+echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "  NEXTAUTH_SECRET : ${YELLOW}${NEXTAUTH_SECRET}${NC}"
+echo -e "  DB_PASSWORD     : ${YELLOW}${DB_PASSWORD}${NC}"
+echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo ""
