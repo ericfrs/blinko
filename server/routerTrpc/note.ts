@@ -816,7 +816,6 @@ export const noteRouter = router({
       `;
       const keywordsResult = await agent.generate(extractionPrompt);
       const keywords = keywordsResult.text.trim();
-      console.log("Extracted keywords:", keywords);
       const { notes } = await AiModelFactory.queryVector(keywords, Number(ctx.id), 10);
       return notes;
     }),
@@ -1103,7 +1102,7 @@ export const noteRouter = router({
             }
           }
         } catch (err) {
-          console.log(err);
+          console.error(err);
         }
 
         if (config?.embeddingModelId) {
@@ -1172,9 +1171,6 @@ export const noteRouter = router({
                       where: { id: note.id },
                       data: { content: note.content + transcriptionText },
                     }).then(() => {
-                      console.log(`Added transcriptions to note ${note.id},${transcriptionText}`);
-
-                      // Re-run embedding if model is configured
                       if (config?.embeddingModelId) {
                         AiService.embeddingUpsert({
                           id: note.id,
@@ -1213,7 +1209,7 @@ export const noteRouter = router({
 
           return note;
         } catch (error) {
-          console.log(error);
+          console.error(error);
         }
       }
     }),
@@ -1859,7 +1855,7 @@ export async function deleteNotes(ids: number[], ctx: Context) {
           try {
             await FileService.deleteFile(attachment.path);
           } catch (error) {
-            console.log('delete attachment error:', error);
+            console.error('delete attachment error:', error);
           }
         }
         await prisma.attachments.deleteMany({

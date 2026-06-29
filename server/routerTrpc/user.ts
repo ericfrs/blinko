@@ -204,7 +204,6 @@ export const userRouter = router({
     .output(z.boolean())
     .mutation(async () => {
       try {
-        console.log('canRegisterxxx')
         const count = await prisma.accounts.count()
         if (count == 0) {
           return true
@@ -214,7 +213,7 @@ export const userRouter = router({
           return res?.config.value === true
         }
       } catch (error) {
-        console.log(error, 'canRegister error')
+        console.error(error, 'canRegister error')
         return true
       }
     }),
@@ -290,7 +289,6 @@ export const userRouter = router({
       const user = await prisma.accounts.findFirst({ where: { id: Number(ctx.id) } })
       if (user) {
         const token = await generateApiToken({ id: user.id, name: user.name ?? '', role: user.role })
-        console.log('token', token);
         await prisma.accounts.update({ where: { id: user.id }, data: { apiToken: token } })
         return true
       } else {
