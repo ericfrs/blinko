@@ -37,7 +37,16 @@ fi
 
 if [ "$(docker ps -aq -f name=blinko-postgres)" ]; then
     echo -e "${YELLOW}Container 'blinko-postgres' already exists. Skipping container creation.${NC}"
-    echo -e "${YELLOW}⚠️  Using existing postgres container. Make sure DATABASE_URL matches its credentials.${NC}"
+    echo -e "${YELLOW}⚠️  Extracting existing DB_PASSWORD from postgres container...${NC}"
+    EXISTING_DB_PASSWORD=$(docker inspect blinko-postgres | grep -oP '(?<="POSTGRES_PASSWORD=)[^"]*' || docker inspect blinko-postgres | grep "POSTGRES_PASSWORD=" | head -n 1 | cut -d '"' -f 2 | cut -d '=' -f 2-)
+    
+    if [ -n "$EXISTING_DB_PASSWORD" ]; then
+        DB_PASSWORD="$EXISTING_DB_PASSWORD"
+        echo -e "${GREEN}✅ Successfully extracted existing DB_PASSWORD.${NC}"
+    else
+        echo -e "${RED}Failed to extract existing POSTGRES_PASSWORD from blinko-postgres. Please check the container manually.${NC}"
+        exit 1
+    fi
 else
     echo -e "${YELLOW}2. 🐳 Starting PostgreSQL container...${NC}"
     docker run -d \
